@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>LOGIN TO PC</title>
+  <style>
+    body {
+      background: #1f1f1f;
+      font-family: 'Segoe UI', sans-serif;
+      color: #fff;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding-top: 30px;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      background: #2a2a2a;
+      padding: 2em;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0, 0, 0, 0.5);
+      text-align: center;
+      width: 90%;
+      max-width: 500px;
+    }
+
+    input {
+      margin: 10px 0;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      width: 80%;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #4caf50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #45a049;
+    }
+
+    a {
+      display: block;
+      margin-top: 20px;
+      color: #00bfff;
+      text-decoration: none;
+      cursor: pointer;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    #admin-section {
+      display: none;
+    }
+
+    #result {
+      margin-top: 15px;
+      font-weight: bold;
+    }
+
+    .log-container {
+      background: #1a1a1a;
+      margin-top: 25px;
+      padding: 1em;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 0.9em;
+      text-align: left;
+    }
+
+    .log-entry {
+      margin: 4px 0;
+      border-bottom: 1px solid #333;
+      padding-bottom: 4px;
+    }
+
+    .success { color: lightgreen; }
+    .fail { color: tomato; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 LOGIN TO PC</h1>
+
+    <div id="user-section">
+      <input type="text" id="username" placeholder="Enter Username" required><br>
+      <input type="password" id="pwd1" placeholder="Enter Password 1" required><br>
+      <input type="password" id="pwd2" placeholder="Enter Password 2" required><br>
+      <input type="password" id="pwd3" placeholder="Enter Password 3" required><br>
+      <button onclick="checkUserPasswords()">Login</button>
+    </div>
+
+    <div id="admin-section">
+      <h3>🛠️ Admin Override</h3>
+      <input type="password" id="adminPwd" placeholder="Enter Admin Password" required><br>
+      <button onclick="checkAdminPassword()">Override Access</button>
+    </div>
+
+    <div id="result"></div>
+    <a onclick="resetForm()">🔁 Try Again</a>
+
+    <div class="log-container" id="logBox">
+      <h4>📜 Login Logs:</h4>
+      <div id="logs"></div>
+    </div>
+  </div>
+
+  <script>
+    // SHA-256 Hash Function
+    async function hashPassword(password) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+      return Array.from(new Uint8Array(hashBuffer))
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+
+    // Predefined credentials
+    const allowedUsernames = ["shaurya", "yashmit", "vihaan", "suyash"];
+    const rawUserPasswords = ["syvs1", "Passw0rd01", "that1moment"];
+    const rawAdminPassword = "Datalearn01!";
+
+    let userPasswordHashes = new Set();
+    let adminPasswordHash = "";
+
+    // Preload hashes
+    (async () => {
+      for (const pwd of rawUserPasswords) {
+        userPasswordHashes.add(await hashPassword(pwd));
+      }
+      adminPasswordHash = await hashPassword(rawAdminPassword);
+    })();
+
+    // User Auth
+    async function checkUserPasswords() {
+      const username = document.getElementById("username").value.trim();
+      if (!allowedUsernames.includes(username.toLowerCase())) {
+        showResult("❌ Unknown username. Access Denied.", "red");
+        logAttempt(username, "❌ Unknown user", "Fail", "User");
+        return;
+      }
+
+      const inputs = [
+        document.getElementById("pwd1").value,
+        document.getElementById("pwd2").value,
+        document.getElementById("pwd3").value,
+      ];
+
+      if (new Set(inputs).size < 3) {
+        showResult("⚠️ Duplicate passwords entered. Try again.", "orange");
+        logAttempt(username, "⚠️ Duplicate passwords", "fail", "User");
+        return;
+      }
+
+      const enteredHashes = new Set();
+      for (let p of inputs) {
+        enteredHashes.add(await hashPassword(p));
+      }
+
+      const match = [...userPasswordHashes].every(h => enteredHashes.has(h));
+      if (match) {
+        showResult(`✅ Welcome, ${username}! Access granted.`, "lightgreen");
+        logAttempt(username, "✅ User access granted", "Success", "User");
+      } else {
+        showResult(`❌ Password check failed for ${username}. Admin override required.`, "red");
+        document.getElementById("admin-section").style.display = "block";
+        logAttempt(username, "❌ Wrong passwords", "fail", "User");
+      }
+    }
+
+    // Admin Auth
+    async function checkAdminPassword() {
+      const username = document.getElementById("username").value.trim() || "Unknown";
+      const adminInput = document.getElementById("adminPwd").value;
+      const enteredHash = await hashPassword(adminInput);
+
+      if (enteredHash === adminPasswordHash) {
+        showResult("✅ Admin override successful. Access granted.", "lightgreen");
+        logAttempt(username, "✅ Admin override", "success", "Admin");
+      } else {
+        showResult("🚨 SECURITY ALERT TRIGGERED! Access locked.", "red");
+        logAttempt(username, "❌ Admin override failed", "fail", "Admin");
+      }
+    }
+
+    // Show Result
+    function showResult(text, color) {
+      const resultDiv = document.getElementById("result");
+      resultDiv.style.color = color;
+      resultDiv.textContent = text;
+    }
+
+    // Reset Form
+    function resetForm() {
+      document.getElementById("username").value = "";
+      document.getElementById("pwd1").value = "";
+      document.getElementById("pwd2").value = "";
+      document.getElementById("pwd3").value = "";
+      document.getElementById("adminPwd").value = "";
+      document.getElementById("admin-section").style.display = "none";
+      document.getElementById("result").textContent = "";
+    }
+
+    // Log Attempt
+    function logAttempt(user, message, type, source) {
+      const logBox = document.getElementById("logs");
+      const time = new Date().toLocaleString();
+      const entry = document.createElement("div");
+      entry.classList.add("log-entry", type);
+      entry.textContent = `[${time}] [${source}] ${user}: ${message}`;
+      logBox.prepend(entry);
+    }
+  </script>
+</body>
+</html>
